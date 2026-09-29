@@ -37,19 +37,19 @@ const register = AsyncHandler(async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(password, salt);
   // Create a new user
-  const User = await User.create({
+  const newUser = await User.create({
     username: username.trim(),
     email: normalizedEmail,
     password: passwordHash,
   });
   //prepare the response data without the password
   const safeUser = {
-    _id: User._id,
-    username: User.username,
-    email: User.email,
-    role: User.role,
-    avatar: User.avatar,
-    createdAt: User.createdAt,
+    _id: newUser._id,
+    username: newUser.username,
+    email: newUser.email,
+    role: newUser.role,
+    avatar: newUser.avatar,
+    createdAt: newUser.createdAt,
   };
   //send the response
   res
@@ -111,10 +111,10 @@ const login = AsyncHandler(async (req, res) => {
   // Prepare the user data to send in the response (excluding sensitive information)
   const safeUser = {
     id: existingUser._id,
-    name: existingUser.name,
+    username: existingUser.username,
     email: existingUser.email,
     role: existingUser.role,
-    avatarUrl: existingUser.avatar,
+    avatar: existingUser.avatar,
     lastLoginAt: existingUser.lastLoginAt,
   };
 
@@ -245,10 +245,10 @@ const refreshToken = AsyncHandler(async (req, res) => {
 const getMe = AsyncHandler(async (req, res) => {
   const safeUser = {
     id: req.user._id,
-    name: req.user.name,
+    username: req.user.username,
     email: req.user.email,
     role: req.user.role,
-    avatarUrl: req.user.avatarUrl,
+    avatar: req.user.avatar,
     lastLoginAt: req.user.lastLoginAt,
     createdAt: req.user.createdAt,
   };

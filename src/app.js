@@ -6,6 +6,8 @@ import morgan from "morgan";
 import env from "./config/env.js";
 import ErrorHandler from "./middlewares/ErrorHandler.middleware.js";
 import notFound from "./middlewares/notFound.middleware.js";
+import projectRoutes from "./routes/project.route.js";
+
 
 const app = express();
 const router = express.Router();
@@ -31,9 +33,8 @@ app.use(env.basicRoute, healthcheck);
 import authRoutes from "./routes/auth.route.js";
 app.use(env.basicRoute + "/auth", authRoutes);
 
-
-
-
+//project routes
+app.use(env.basicRoute + "/projects", projectRoutes);
 
 app.use(notFound); // Handle requests to routes that are not found
 app.use(ErrorHandler); // Handle errors globally

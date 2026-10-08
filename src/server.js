@@ -4,6 +4,11 @@ import app from "./app.js";
 import env from "./config/env.js";
 import connectDatabase from "./config/db.js";
 import logger from "./config/logger.js";
+import "./models/user.model.js";
+import "./models/refreshToken.model.js";
+import "./models/project.model.js";
+import "./models/projectMember.model.js";
+
 
 let server;
 const startServer = async () => {

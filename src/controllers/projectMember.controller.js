@@ -1,11 +1,11 @@
 import User from "../models/user.model.js";
 import ProjectMember from "../models/projectMember.model.js";
 
-import ApiError from "../utils/apiError.js";
-import ApiResponse from "../utils/apiResponse.js";
-import asyncHandler from "../utils/asyncHandler.js";
+import ApiError from "../utils/ApiError.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import AsyncHandler from "../utils/AsyncHandler.js";
 
-const addProjectMember = asyncHandler(async (req, res) => {
+const addProjectMember = AsyncHandler(async (req, res) => {
   const { email, role } = req.body;
   // Validate email
   if (!email) {
@@ -48,4 +48,79 @@ const addProjectMember = asyncHandler(async (req, res) => {
     );
 });
 
-export { addProjectMember };
+// get project members
+const getProjectMembers = AsyncHandler(
+  async (req, res) => {
+    const members = await ProjectMember.find({
+      project: req.project._id,
+    })
+      .populate("user", "username email avatar role")  // Populate user details (username, email, avatar, role)
+      .sort({
+        createdAt: 1,
+      });
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        members,
+        "Project members fetched successfully"
+      )
+    );
+  }
+);
+
+//update project member role--PATCH /api/v1/projects/:projectId/members/:userId
+
+const updateProjectMemberRole = AsyncHandler(
+  async (req, res) => {
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    const allowedRoles = [
+      "manager",
+      "member",
+      "viewer",
+    ];
+
+    if (!role || !allowedRoles.includes(role)) {
+      throw new ApiError(
+        400,
+        "Valid role is required: manager, member, viewer"
+      );
+    }
+
+    const projectMember = await ProjectMember.findOne({
+      project: req.project._id,
+      user: userId,
+    });
+
+    if (!projectMember) {
+      throw new ApiError(
+        404,
+        "Project member not found"
+      );
+    }
+
+    projectMember.role = role;
+
+    await projectMember.save();
+
+    const updatedMember = await ProjectMember.findById(
+      projectMember._id
+    ).populate(
+      "user",
+      "username email avatar role"
+    );
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        updatedMember,
+        "Project member role updated successfully"
+      )
+    );
+  }
+);
+
+
+export { addProjectMember, getProjectMembers, updateProjectMemberRole };

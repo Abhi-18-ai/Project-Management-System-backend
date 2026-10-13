@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import ProjectMember from "../models/projectMember.model.js";
 
@@ -121,6 +122,32 @@ const updateProjectMemberRole = AsyncHandler(
     );
   }
 );
+// Remove project member
+const removeProjectMember = AsyncHandler(async (req, res) => {
+  const { userId } = req.params;
+
+  //  Validate user ID
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new ApiError(400, "Invalid user ID");
+  }
+  //  Find and remove the member from this project
+  const removedMember = await ProjectMember.findOneAndDelete({
+    project: req.project._id,
+    user: userId,
+  });
+  //  Handle member not found
+  if (!removedMember) {
+    throw new ApiError(404, "Project member not found");
+  }
+  //  Send success response
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      null,
+      "Project member removed successfully"
+    )
+  );
+});
 
 
-export { addProjectMember, getProjectMembers, updateProjectMemberRole };
+export { addProjectMember, getProjectMembers, updateProjectMemberRole , removeProjectMember };

@@ -382,7 +382,24 @@ const updateTask = AsyncHandler(async (req, res) => {
 
     task.priority = req.body.priority;
   }
+  //  Validate assignment permissions
+  if (req.body.assignedTo !== undefined) {
+    const isOwner = project.owner.toString() === req.user._id.toString();
 
+    if (!isOwner) {
+      const membership = await ProjectMember.findOne({
+        project: project._id,
+        user: req.user._id,
+      });
+
+      if (!membership || membership.role !== "manager") {
+        throw new ApiError(
+          403,
+          "Only project owners and managers can change task assignments",
+        );
+      }
+    }
+  }
   // Validate assignee
   if (req.body.assignedTo !== undefined) {
     const assignedTo = req.body.assignedTo;
@@ -513,4 +530,112 @@ const deleteTask = AsyncHandler(async (req, res) => {
     );
 });
 
-export { createTask, getProjectTasks, getTaskById, updateTask, deleteTask };
+// Assign or unassign a task to a user
+const assignTask = AsyncHandler(async (req, res) => {
+  const { projectId, taskId } = req.params;
+
+  // Ensure assignedTo is present in the request
+  if (!Object.prototype.hasOwnProperty.call(req.body, "assignedTo")) {
+    throw new ApiError(400, "assignedTo field is required");
+  }
+
+  // Validate IDs
+  if (
+    !mongoose.Types.ObjectId.isValid(projectId) ||
+    !mongoose.Types.ObjectId.isValid(taskId)
+  ) {
+    throw new ApiError(400, "Invalid project ID or task ID");
+  }
+
+  // Find project
+  const project = await Project.findById(projectId);
+
+  if (!project) {
+    throw new ApiError(404, "Project not found");
+  }
+
+  //  Check owner or manager permission
+  const isOwner = project.owner.toString() === req.user._id.toString();
+
+  if (!isOwner) {
+    const membership = await ProjectMember.findOne({
+      project: project._id,
+      user: req.user._id,
+    });
+
+    if (!membership) {
+      throw new ApiError(403, "Project access denied");
+    }
+
+    if (membership.role !== "manager") {
+      throw new ApiError(
+        403,
+        "Only project owners and managers can change task assignments",
+      );
+    }
+  }
+
+  //  Find task within the project
+  const task = await Task.findOne({
+    _id: taskId,
+    project: project._id,
+  });
+
+  if (!task) {
+    throw new ApiError(404, "Task not found in this project");
+  }
+
+  const { assignedTo } = req.body;
+
+  //  Null means unassign the task
+  if (assignedTo === null) {
+    task.assignedTo = null;
+  } else {
+    //  Validate assignee ID
+    if (
+      typeof assignedTo !== "string" ||
+      !mongoose.Types.ObjectId.isValid(assignedTo)
+    ) {
+      throw new ApiError(400, "Invalid assignee ID");
+    }
+
+    // Project owner can also be assigned
+    const isProjectOwner = project.owner.toString() === assignedTo;
+
+    if (!isProjectOwner) {
+      const assigneeMembership = await ProjectMember.findOne({
+        project: project._id,
+        user: assignedTo,
+      });
+
+      if (!assigneeMembership) {
+        throw new ApiError(400, "Assignee must be a member of this project");
+      }
+    }
+
+    task.assignedTo = assignedTo;
+  }
+
+  //  Save assignment
+  await task.save();
+
+  // Return updated task with user details
+  const updatedTask = await Task.findById(task._id)
+    .populate("assignedTo", "username email avatar")
+    .populate("createdBy", "username email avatar");
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedTask, "Task assignment updated successfully"),
+    );
+});
+
+export {
+  createTask,
+  getProjectTasks,
+  getTaskById,
+  updateTask,
+  deleteTask,
+  assignTask,
+};

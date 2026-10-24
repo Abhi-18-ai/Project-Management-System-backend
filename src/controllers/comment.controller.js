@@ -8,6 +8,7 @@ import Task from "../models/task.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/AsyncHandler.js";
+import logActivity from "../services/activityLog.service.js";
 
 const checkProjectAccess = async (project, userId) => {
   const isOwner = project.owner.toString() === userId.toString();
@@ -74,6 +75,18 @@ const createComment = asyncHandler(async (req, res) => {
     project: project._id,
     author: req.user._id,
     content: content.trim(),
+  });
+  // Log the activity of creating a comment
+  await logActivity({
+    projectId: project._id,
+    actorId: req.user._id,
+    action: "comment_created",
+    targetType: "comment",
+    targetId: comment._id,
+    details: {
+      taskId: task._id,
+      taskTitle: task.title,
+    },
   });
 
   const populatedComment = await Comment.findById(comment._id).populate(

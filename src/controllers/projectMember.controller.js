@@ -5,6 +5,7 @@ import ProjectMember from "../models/projectMember.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
+import logActivity from "../services/activityLog.service.js";
 
 const addProjectMember = AsyncHandler(async (req, res) => {
   const { email, role } = req.body;
@@ -42,6 +43,19 @@ const addProjectMember = AsyncHandler(async (req, res) => {
     user: user._id,
     role: role || "member",
   });
+  // Log activity
+  await logActivity({
+    projectId: req.project._id,
+    actorId: req.user._id,
+    action: "member_added",
+    targetType: "member",
+    targetId: projectMember._id,
+    details: {
+      userId: user._id,
+      username: user.username,
+      role: membership.role,
+    },
+  });
   res
     .status(201)
     .json(
@@ -50,104 +64,114 @@ const addProjectMember = AsyncHandler(async (req, res) => {
 });
 
 // get project members
-const getProjectMembers = AsyncHandler(
-  async (req, res) => {
-    const members = await ProjectMember.find({
-      project: req.project._id,
-    })
-      .populate("user", "username email avatar role")  // Populate user details (username, email, avatar, role)
-      .sort({
-        createdAt: 1,
-      });
+const getProjectMembers = AsyncHandler(async (req, res) => {
+  const members = await ProjectMember.find({
+    project: req.project._id,
+  })
+    .populate("user", "username email avatar role") // Populate user details (username, email, avatar, role)
+    .sort({
+      createdAt: 1,
+    });
 
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        members,
-        "Project members fetched successfully"
-      )
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, members, "Project members fetched successfully"),
     );
-  }
-);
+});
 
 //update project member role--PATCH /api/v1/projects/:projectId/members/:userId
 
-const updateProjectMemberRole = AsyncHandler(
-  async (req, res) => {
-    const { userId } = req.params;
-    const { role } = req.body;
+const updateProjectMemberRole = AsyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const { role } = req.body;
 
-    const allowedRoles = [
-      "manager",
-      "member",
-      "viewer",
-    ];
+  const allowedRoles = ["manager", "member", "viewer"];
 
-    if (!role || !allowedRoles.includes(role)) {
-      throw new ApiError(
-        400,
-        "Valid role is required: manager, member, viewer"
-      );
-    }
+  if (!role || !allowedRoles.includes(role)) {
+    throw new ApiError(400, "Valid role is required: manager, member, viewer");
+  }
 
-    const projectMember = await ProjectMember.findOne({
-      project: req.project._id,
-      user: userId,
-    });
+  const projectMember = await ProjectMember.findOne({
+    project: req.project._id,
+    user: userId,
+  });
 
-    if (!projectMember) {
-      throw new ApiError(
-        404,
-        "Project member not found"
-      );
-    }
+  if (!projectMember) {
+    throw new ApiError(404, "Project member not found");
+  }
 
-    projectMember.role = role;
+  projectMember.role = role;
 
-    await projectMember.save();
+  await projectMember.save();
+  // Log the activity of updating the member's role
+  await logActivity({
+    projectId: req.project._id,
+    actorId: req.user._id,
+    action: "member_role_updated",
+    targetType: "member",
+    targetId: projectMember._id,
+    details: {
+      userId: projectMember.user,
+      newRole: projectMember.role,
+    },
+  });
+  const updatedMember = await ProjectMember.findById(
+    projectMember._id,
+  ).populate("user", "username email avatar role");
 
-    const updatedMember = await ProjectMember.findById(
-      projectMember._id
-    ).populate(
-      "user",
-      "username email avatar role"
-    );
-
-    res.status(200).json(
+  res
+    .status(200)
+    .json(
       new ApiResponse(
         200,
         updatedMember,
-        "Project member role updated successfully"
-      )
+        "Project member role updated successfully",
+      ),
     );
-  }
-);
+});
 // Remove project member
 const removeProjectMember = AsyncHandler(async (req, res) => {
   const { userId } = req.params;
 
-  //  Validate user ID
+  // Validate user ID
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     throw new ApiError(400, "Invalid user ID");
   }
-  //  Find and remove the member from this project
+
+  // Find and remove the member
   const removedMember = await ProjectMember.findOneAndDelete({
     project: req.project._id,
     user: userId,
   });
-  //  Handle member not found
+
+  // Handle member not found
   if (!removedMember) {
     throw new ApiError(404, "Project member not found");
   }
-  //  Send success response
-  res.status(200).json(
-    new ApiResponse(
-      200,
-      null,
-      "Project member removed successfully"
-    )
-  );
+
+  // Record member removal activity
+  await logActivity({
+    projectId: req.project._id,
+    actorId: req.user._id,
+    action: "member_removed",
+    targetType: "member",
+    targetId: removedMember._id,
+    details: {
+      userId: removedMember.user,
+      previousRole: removedMember.role,
+    },
+  });
+
+  // Send success response
+  res
+    .status(200)
+    .json(new ApiResponse(200, null, "Project member removed successfully"));
 });
 
-
-export { addProjectMember, getProjectMembers, updateProjectMemberRole , removeProjectMember };
+export {
+  addProjectMember,
+  getProjectMembers,
+  updateProjectMemberRole,
+  removeProjectMember,
+};

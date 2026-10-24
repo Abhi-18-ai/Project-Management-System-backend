@@ -7,6 +7,7 @@ import ProjectMember from "../models/projectMember.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
+import logActivity from "../services/activityLog.service.js";
 
 const createTask = AsyncHandler(async (req, res) => {
   const { projectId } = req.params;
@@ -115,6 +116,17 @@ const createTask = AsyncHandler(async (req, res) => {
     status: status || "todo",
     priority: priority || "medium",
     dueDate: parsedDueDate,
+  });
+  // Log activity
+  await logActivity({
+    projectId: project._id,
+    actorId: req.user._id,
+    action: "task_created",
+    targetType: "task",
+    targetId: task._id,
+    details: {
+      title: task.title,
+    },
   });
 
   // Return response
@@ -455,7 +467,27 @@ const updateTask = AsyncHandler(async (req, res) => {
 
   // Save changes
   await task.save();
-
+  // Record task update activity
+  await logActivity({
+    projectId: project._id,
+    actorId: req.user._id,
+    action: "task_updated",
+    targetType: "task",
+    targetId: task._id,
+    details: {
+      title: task.title,
+      updatedFields: Object.keys(req.body).filter((field) =>
+        [
+          "title",
+          "description",
+          "status",
+          "priority",
+          "assignedTo",
+          "dueDate",
+        ].includes(field),
+      ),
+    },
+  });
   //  Return updated task
   const updatedTask = await Task.findById(task._id)
     .populate("assignedTo", "username email avatar")
@@ -618,7 +650,18 @@ const assignTask = AsyncHandler(async (req, res) => {
 
   //  Save assignment
   await task.save();
-
+  // Log activity
+  await logActivity({
+    projectId: project._id,
+    actorId: req.user._id,
+    action: "task_assigned",
+    targetType: "task",
+    targetId: task._id,
+    details: {
+      title: task.title,
+      assignedTo: task.assignedTo,
+    },
+  });
   // Return updated task with user details
   const updatedTask = await Task.findById(task._id)
     .populate("assignedTo", "username email avatar")

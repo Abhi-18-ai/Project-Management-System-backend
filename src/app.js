@@ -49,6 +49,10 @@ app.use(env.basicRoute + "/projects", taskRoutes);
 import commentRoutes from "./routes/comment.route.js";
 app.use(env.basicRoute + "/projects", commentRoutes);
 
+//activity log routes
+import activityLogRoutes from "./routes/activityLog.route.js";
+app.use(env.basicRoute + "/projects", activityLogRoutes);
+
 app.use(notFound); // Handle requests to routes that are not found
 app.use(ErrorHandler); // Handle errors globally
 export default app;

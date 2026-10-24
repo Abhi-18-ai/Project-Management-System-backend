@@ -53,6 +53,10 @@ app.use(env.basicRoute + "/projects", commentRoutes);
 import activityLogRoutes from "./routes/activityLog.route.js";
 app.use(env.basicRoute + "/projects", activityLogRoutes);
 
+//notification routes
+import notificationRoutes from "./routes/notification.route.js";
+app.use(env.basicRoute + "/notifications", notificationRoutes);
+
 app.use(notFound); // Handle requests to routes that are not found
 app.use(ErrorHandler); // Handle errors globally
 export default app;

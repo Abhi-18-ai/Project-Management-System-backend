@@ -4,7 +4,7 @@ import {
   createComment,
   getTaskComments,
 } from "../controllers/comment.controller.js";
-import authenticate from "../middlewares/authenticate.middleware.js";
+import authenticate from "../middlewares/authenticate.js";
 
 const router = Router();
 

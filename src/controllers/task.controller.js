@@ -8,6 +8,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
 import logActivity from "../services/activityLog.service.js";
+import createNotification from "../services/notification.service.js";
 
 const createTask = AsyncHandler(async (req, res) => {
   const { projectId } = req.params;
@@ -662,6 +663,21 @@ const assignTask = AsyncHandler(async (req, res) => {
       assignedTo: task.assignedTo,
     },
   });
+  // Create notification for new assignee
+  const newAssigneeId = task.assignedTo ? task.assignedTo.toString() : null;
+
+  if (newAssigneeId && newAssigneeId !== previousAssigneeId) {
+    await createNotification({
+      recipientId: task.assignedTo,
+      actorId: req.user._id,
+      projectId: project._id,
+      type: "task_assigned",
+      title: "New task assigned",
+      message: `You have been assigned to "${task.title}".`,
+      resourceType: "task",
+      resourceId: task._id,
+    });
+  }
   // Return updated task with user details
   const updatedTask = await Task.findById(task._id)
     .populate("assignedTo", "username email avatar")

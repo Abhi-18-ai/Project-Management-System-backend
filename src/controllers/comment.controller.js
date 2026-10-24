@@ -9,6 +9,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/AsyncHandler.js";
 import logActivity from "../services/activityLog.service.js";
+import createNotification from "../services/notification.service.js";
 
 const checkProjectAccess = async (project, userId) => {
   const isOwner = project.owner.toString() === userId.toString();
@@ -88,7 +89,19 @@ const createComment = asyncHandler(async (req, res) => {
       taskTitle: task.title,
     },
   });
-
+  // Notify the task assignee about the new comment
+  if (task.assignedTo) {
+    await createNotification({
+      recipientId: task.assignedTo,
+      actorId: req.user._id,
+      projectId: project._id,
+      type: "comment_added",
+      title: "New comment on your task",
+      message: `A new comment was added to "${task.title}".`,
+      resourceType: "comment",
+      resourceId: comment._id,
+    });
+  }
   const populatedComment = await Comment.findById(comment._id).populate(
     "author",
     "username email avatar",

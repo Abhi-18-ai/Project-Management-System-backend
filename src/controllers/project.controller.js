@@ -1,5 +1,5 @@
 import Project from "../models/project.model.js";
-
+import { getCache, setCache, deleteCache } from "../utils/cache.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
@@ -10,8 +10,16 @@ const createProject = asyncHandler(async (req, res) => {
   const { name, description } = req.body;
 
   // Validate project name
-  if (!name || !name.trim()) {
-    throw new ApiError(400, "Project name is required");
+  // if (!name || !name.trim()) {
+  //   throw new ApiError(400, "Project name is required");
+  // }
+
+  if (typeof name !== "string" || !name.trim()) {
+    throw new ApiError(400, "Project name must be a non-empty string");
+  }
+
+  if (description !== undefined && typeof description !== "string") {
+    throw new ApiError(400, "Project description must be a string");
   }
 
   // Create project
@@ -20,7 +28,7 @@ const createProject = asyncHandler(async (req, res) => {
     description: description?.trim() || "",
     owner: req.user._id,
   });
-
+  await deleteCache(`projects:owner:${req.user._id}`);
   res
     .status(201)
     .json(new ApiResponse(201, project, "Project created successfully"));
@@ -28,14 +36,27 @@ const createProject = asyncHandler(async (req, res) => {
 
 //get projects
 const getProjects = asyncHandler(async (req, res) => {
+  const cacheKey = `projects:owner:${req.user._id}`;
+
+  // Try to read projects from Redis.
+  const cachedProjects = await getCache(cacheKey);
+
+  if (cachedProjects !== null) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, cachedProjects, "Projects fetched successfully"),
+      );
+  }
+  // Cache miss: fetch projects from MongoDB.
   const projects = await Project.find({
-    //find the project by there owner id
     owner: req.user._id,
   }).sort({
-    //sort by latest creation of project by owner
-    createdAt: -1, //sort in descending order
+    createdAt: -1,
   });
-
+  //  Store the result in Redis for 60 seconds.
+  await setCache(cacheKey, projects, 60);
+  //  Return the same API response format.
   res
     .status(200)
     .json(new ApiResponse(200, projects, "Projects fetched successfully"));
@@ -56,8 +77,14 @@ const updateProject = asyncHandler(async (req, res) => {
     throw new ApiError(400, "At least one field is required to update");
   }
 
-  if (name !== undefined && !name.trim()) {
-    throw new ApiError(400, "Project name cannot be empty");
+  if (name !== undefined) {
+    if (typeof name !== "string" || !name.trim()) {
+      throw new ApiError(400, "Project name must be a non-empty string");
+    }
+  }
+
+  if (description !== undefined && typeof description !== "string") {
+    throw new ApiError(400, "Project description must be a string");
   }
 
   if (
@@ -66,7 +93,6 @@ const updateProject = asyncHandler(async (req, res) => {
   ) {
     throw new ApiError(400, "Invalid project status");
   }
-
   if (name !== undefined) {
     req.project.name = name.trim();
   }
@@ -81,6 +107,8 @@ const updateProject = asyncHandler(async (req, res) => {
 
   await req.project.save();
 
+  await deleteCache(`projects:owner:${req.user._id}`);
+
   res
     .status(200)
     .json(new ApiResponse(200, req.project, "Project updated successfully"));
@@ -89,7 +117,7 @@ const updateProject = asyncHandler(async (req, res) => {
 //delete project
 const deleteProject = asyncHandler(async (req, res) => {
   await req.project.deleteOne();
-
+  await deleteCache(`projects:owner:${req.user._id}`);
   res
     .status(200)
     .json(new ApiResponse(200, null, "Project deleted successfully"));

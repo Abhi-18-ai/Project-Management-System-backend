@@ -619,7 +619,9 @@ const assignTask = AsyncHandler(async (req, res) => {
   }
 
   const { assignedTo } = req.body;
-
+  const previousAssigneeId = task.assignedTo
+    ? task.assignedTo.toString()
+    : null;
   //  Null means unassign the task
   if (assignedTo === null) {
     task.assignedTo = null;
